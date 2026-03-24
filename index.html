@@ -245,7 +245,7 @@
 const TFL_KEY = '78be836e82194be0892b69045747e739';
 const GUARDIAN_KEY = '1d633f52-bdee-4d41-a91a-9dee1e78dd97';
 const TFL = 'https://api.tfl.gov.uk';
-const BRONDESBURY_PARK = '910GBRNSPK';
+const BRONDESBURY_PARK = '910GBRBYPK';
 const LAT = 51.5353, LNG = -0.2043;
 
 // Only 5 key lines in commute status
@@ -304,7 +304,20 @@ function minsUntil(iso) { return Math.round((new Date(iso)-now())/60000); }
 function isWeekend() { const d=now().getDay(); return d===0||d===6; }
 
 function getMode() {
-  if (modeOverride !== null) return modeOverride;
+  const natural = getNaturalMode();
+  // If override matches natural mode, clear it silently
+  if (modeOverride === natural) {
+    modeOverride = null;
+    overrideIdx = 0;
+    ['override-btn','sleep-override-btn'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('active');
+    });
+  }
+  return modeOverride !== null ? modeOverride : natural;
+}
+
+function getNaturalMode() {
   const m = now().getHours()*60+now().getMinutes();
   if (m<360||m>=1380) return 'sleep';
   if (!isWeekend()&&m<630) return 'commute';
