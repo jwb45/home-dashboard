@@ -514,7 +514,10 @@ async function update() {
         renderDeps(johnArr,document.getElementById('john-departures'));
         renderDeps(flatArr,document.getElementById('flatmate-departures'));
       } catch(e){
-        ['john-departures','flatmate-departures'].forEach(id=>document.getElementById(id).innerHTML='<div class="error-msg">Could not load departures</div>');
+        const msg = isOvernight()
+          ? '<div class="dep-no-service">🌙 Closed overnight — services resume from 5am</div>'
+          : '<div class="error-msg">Could not load departures</div>';
+        ['john-departures','flatmate-departures'].forEach(id=>document.getElementById(id).innerHTML=msg);
       }
 
       // Key line statuses
