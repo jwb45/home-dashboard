@@ -46,7 +46,7 @@
   }
 
   /* CARDS */
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; position: relative; overflow: hidden; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; position: relative; overflow: hidden; }
   .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--accent); opacity: 0.25; }
   .card-label { font-size: 9px; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
   .card-label .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
@@ -105,12 +105,12 @@
   /* HOURLY */
   #hourly-commute { grid-area: hourly; }
   #hourly-home { grid-area: hourly; }
-  .hourly-strip { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
-  .hour-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 6px; text-align: center; }
-  .hour-time { font-size: 9px; color: var(--muted); letter-spacing: 1px; margin-bottom: 4px; }
-  .hour-icon { font-size: 18px; margin-bottom: 3px; }
-  .hour-temp { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; }
-  .hour-rain { font-size: 8px; color: #4a90a4; margin-top: 2px; min-height: 11px; }
+  .hourly-strip { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .hour-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 5px 4px; text-align: center; }
+  .hour-time { font-size: 9px; color: var(--muted); letter-spacing: 1px; margin-bottom: 2px; }
+  .hour-icon { font-size: 15px; margin-bottom: 2px; }
+  .hour-temp { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700; }
+  .hour-rain { font-size: 8px; color: #4a90a4; margin-top: 1px; min-height: 10px; }
 
   /* HOME CLOCK */
   #home-clock { grid-area: clock; display: flex; flex-direction: column; justify-content: center; }
