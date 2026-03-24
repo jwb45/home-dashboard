@@ -107,10 +107,10 @@
   #hourly-home { grid-area: hourly; }
   .hourly-strip { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
   .hour-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 5px 4px; text-align: center; }
-  .hour-time { font-size: 9px; color: var(--muted); letter-spacing: 1px; margin-bottom: 2px; }
-  .hour-icon { font-size: 15px; margin-bottom: 2px; }
-  .hour-temp { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700; }
-  .hour-rain { font-size: 8px; color: #4a90a4; margin-top: 1px; min-height: 10px; }
+  .hour-time { font-size: 11px; color: var(--text); letter-spacing: 1px; margin-bottom: 2px; }
+  .hour-icon { font-size: 24px; margin-bottom: 2px; }
+  .hour-temp { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; }
+  .hour-rain { font-size: 9px; color: #4a90a4; margin-top: 1px; min-height: 10px; }
 
   /* HOME CLOCK */
   #home-clock { grid-area: clock; display: flex; flex-direction: column; justify-content: center; }
@@ -302,17 +302,8 @@ function minsUntil(iso) { return Math.round((new Date(iso)-now())/60000); }
 function isWeekend() { const d=now().getDay(); return d===0||d===6; }
 
 function getMode() {
-  const natural = getNaturalMode();
-  // If override matches natural mode, clear it silently
-  if (modeOverride === natural) {
-    modeOverride = null;
-    overrideIdx = 0;
-    ['override-btn','sleep-override-btn'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.classList.remove('active');
-    });
-  }
-  return modeOverride !== null ? modeOverride : natural;
+  if (modeOverride !== null) return modeOverride;
+  return getNaturalMode();
 }
 
 function getNaturalMode() {
@@ -320,6 +311,21 @@ function getNaturalMode() {
   if (m<360||m>=1380) return 'sleep';
   if (!isWeekend()&&m<630) return 'commute';
   return 'home';
+}
+
+let lastNaturalMode = null;
+function checkNaturalModeTransition() {
+  const natural = getNaturalMode();
+  if (lastNaturalMode !== null && lastNaturalMode !== natural) {
+    // Natural mode changed — clear any override
+    modeOverride = null;
+    overrideIdx = 0;
+    ['override-btn','sleep-override-btn'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('active');
+    });
+  }
+  lastNaturalMode = natural;
 }
 function isPeak() { const m=now().getHours()*60+now().getMinutes(); return m>=450&&m<510; }
 
@@ -407,7 +413,7 @@ function renderDeps(arr, el) {
     return;
   }
   arr.sort((a,b)=>new Date(a.expectedArrival)-new Date(b.expectedArrival));
-  const shown=arr.slice(0,5);
+  const shown=arr.slice(0,4);
   let html='';
   if(shown.length===1) html+='<div class="dep-limited">Limited service</div>';
   shown.forEach((a,i)=>{
@@ -503,6 +509,7 @@ function applyMode(mode) {
 
 // ── MAIN UPDATE ──
 async function update() {
+  checkNaturalModeTransition();
   const mode=getMode();
   applyMode(mode);updateClocks();
   if(mode==='sleep'){document.getElementById('loading').classList.add('hidden');return;}
