@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Home Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e0f; --surface: #111618; --surface2: #181e20; --border: #1f2a2d;
+    --text: #e8f0f2; --muted: #5a7278; --accent: #00c4b4; --accent2: #ff6b35;
+    --good: #00c4b4; --warn: #f0a500; --bad: #e03e3e;
+    --overground: #f86c1d; --mildmay: #6950a1;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; background: var(--bg); color: var(--text); font-family: 'Outfit', sans-serif; overflow: hidden; }
+
+  /* SLEEP */
+  #sleep-screen { position: fixed; inset: 0; z-index: 1000; background: #000; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; transition: opacity 0.8s ease; }
+  #sleep-screen.hidden { opacity: 0; pointer-events: none; }
+  #sleep-clock { font-family: 'Syne', sans-serif; font-size: clamp(60px, 12vw, 110px); font-weight: 800; color: #1a1a1a; letter-spacing: -2px; }
+  #sleep-date { font-size: 13px; color: #222; letter-spacing: 3px; text-transform: uppercase; }
+  #sleep-override-btn { margin-top: 32px; font-family: 'Outfit', sans-serif; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; background: transparent; border: 1px solid #1e1e1e; color: #2a2a2a; padding: 6px 14px; border-radius: 20px; cursor: pointer; }
+
+  /* LAYOUT */
+  #app { width: 100vw; height: 100vh; display: grid; padding: 16px; gap: 12px; }
+
+  #app.commute {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto 1fr auto auto;
+    grid-template-areas:
+      "header  header"
+      "john    flatmate"
+      "hourly  hourly"
+      "status  status";
+  }
+
+  #app.home {
+    grid-template-columns: 1.4fr 1fr;
+    grid-template-rows: auto 1fr auto auto;
+    grid-template-areas:
+      "header  header"
+      "clock   lines"
+      "hourly  hourly"
+      "ticker  ticker";
+  }
+
+  /* CARDS */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; position: relative; overflow: hidden; }
+  .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--accent); opacity: 0.25; }
+  .card-label { font-size: 9px; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .card-label .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+
+  /* HEADER */
+  #header { grid-area: header; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 2px; }
+  #header-time-block { text-align: center; }
+  #header-time { font-family: 'Syne', sans-serif; font-size: 42px; font-weight: 800; letter-spacing: -2px; line-height: 1; }
+  #header-date { font-size: 10px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
+  #header-right { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+  #mode-badge { font-size: 9px; letter-spacing: 3px; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); padding: 4px 10px; border-radius: 20px; opacity: 0.7; }
+  #last-updated { font-size: 9px; color: var(--muted); transition: color 0.3s; }
+  #last-updated.stale { color: var(--bad); }
+  #override-btn { font-family: 'Outfit', sans-serif; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); padding: 4px 10px; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
+  #override-btn.active { background: rgba(0,196,180,0.1); border-color: var(--accent); color: var(--accent); }
+
+  /* DEPARTURES */
+  .departures-card { grid-area: john; }
+  .departures-card.flatmate { grid-area: flatmate; }
+  .departures-card::before { background: var(--overground); opacity: 0.5; }
+  .departures-card.flatmate::before { background: var(--mildmay); opacity: 0.5; }
+
+  /* First departure — prominent */
+  .departure-row { display: flex; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); gap: 10px; }
+  .departure-row:last-child { border-bottom: none; }
+  .departure-row.first { padding: 8px 0 10px; border-bottom: 2px solid var(--border); margin-bottom: 2px; }
+
+  .dep-time { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; min-width: 58px; }
+  .departure-row.first .dep-time { font-size: 36px; min-width: 90px; }
+  .dep-time.soon { color: var(--accent); }
+  .dep-time.urgent { color: var(--accent2); animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .dep-info { flex: 1; }
+  .dep-dest { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .departure-row.first .dep-dest { font-size: 16px; }
+  .dep-platform { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+  .dep-mins { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; color: var(--muted); min-width: 48px; text-align: right; }
+  .departure-row.first .dep-mins { font-size: 26px; }
+  .dep-mins.soon { color: var(--accent); }
+  .dep-mins.urgent { color: var(--accent2); }
+
+  .dep-no-service { font-size: 12px; color: var(--bad); padding: 12px 0; display: flex; align-items: center; gap: 8px; }
+  .dep-limited { font-size: 9px; color: var(--warn); letter-spacing: 2px; text-transform: uppercase; padding: 6px 0 2px; }
+
+  /* STATUS - 5 key lines, bigger */
+  #status { grid-area: status; }
+  .status-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .sg-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .sg-name { display: flex; align-items: center; gap: 8px; font-size: 12px; white-space: nowrap; }
+  .line-swatch { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .status-chip { font-size: 9px; letter-spacing: 0.5px; padding: 3px 8px; border-radius: 8px; text-transform: uppercase; white-space: nowrap; }
+  .status-chip.good { background: rgba(0,196,180,0.12); color: var(--good); border: 1px solid rgba(0,196,180,0.25); }
+  .status-chip.warn { background: rgba(240,165,0,0.12); color: var(--warn); border: 1px solid rgba(240,165,0,0.25); }
+  .status-chip.bad { background: rgba(224,62,62,0.12); color: var(--bad); border: 1px solid rgba(224,62,62,0.25); }
+
+  /* HOURLY */
+  #hourly-commute { grid-area: hourly; }
+  #hourly-home { grid-area: hourly; }
+  .hourly-strip { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+  .hour-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 6px; text-align: center; }
+  .hour-time { font-size: 9px; color: var(--muted); letter-spacing: 1px; margin-bottom: 4px; }
+  .hour-icon { font-size: 18px; margin-bottom: 3px; }
+  .hour-temp { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; }
+  .hour-rain { font-size: 8px; color: #4a90a4; margin-top: 2px; min-height: 11px; }
+
+  /* HOME CLOCK */
+  #home-clock { grid-area: clock; display: flex; flex-direction: column; justify-content: center; }
+  #home-clock-time { font-family: 'Syne', sans-serif; font-size: clamp(70px, 10vw, 120px); font-weight: 800; letter-spacing: -4px; line-height: 0.9; }
+  #home-clock-date { font-size: 11px; color: var(--muted); letter-spacing: 4px; text-transform: uppercase; margin-top: 14px; }
+  #home-clock-weather { margin-top: 20px; display: flex; align-items: center; gap: 14px; }
+  #home-big-icon { font-size: 42px; }
+  #home-big-temp { font-family: 'Syne', sans-serif; font-size: 46px; font-weight: 700; letter-spacing: -2px; line-height: 1; }
+  #home-weather-desc { font-size: 10px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-top: 3px; }
+  #home-weather-range { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  #home-sunset { font-size: 10px; color: var(--muted); margin-top: 6px; }
+  #home-sunset span { color: var(--warn); }
+
+  /* HOME LINES */
+  #home-lines { grid-area: lines; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
+  #all-good-msg { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; color: var(--good); text-align: center; padding: 20px 10px; line-height: 1.5; }
+  #all-good-msg small { display: block; font-family: 'Outfit', sans-serif; font-size: 9px; color: var(--muted); letter-spacing: 2px; margin-top: 6px; font-weight: 400; text-transform: uppercase; }
+  .disruption-row { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); }
+  .disruption-row:last-child { border-bottom: none; }
+  .disruption-name { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+
+  /* NEWS TICKER */
+  #ticker { grid-area: ticker; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 0 16px; display: flex; align-items: center; gap: 14px; overflow: hidden; height: 36px; }
+  #ticker-label { font-size: 9px; letter-spacing: 3px; text-transform: uppercase; color: var(--accent); white-space: nowrap; flex-shrink: 0; }
+  #ticker-track-wrap { flex: 1; overflow: hidden; }
+  #ticker-track { display: flex; white-space: nowrap; animation: ticker-scroll 80s linear infinite; }
+  .ticker-item { font-size: 11px; color: var(--muted); padding-right: 60px; }
+  .ticker-item span { color: var(--text); }
+  @keyframes ticker-scroll { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+
+  /* DISRUPTION BANNER */
+  #disruption-banner { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(224,62,62,0.9); color: #fff; padding: 6px 20px; font-size: 10px; letter-spacing: 1px; display: none; z-index: 100; }
+
+  /* LOADING */
+  #loading { position: fixed; inset: 0; z-index: 500; background: var(--bg); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; }
+  #loading.hidden { display: none; }
+  .loader-text { font-size: 11px; letter-spacing: 3px; color: var(--muted); text-transform: uppercase; }
+  .loader-bar { width: 160px; height: 2px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .loader-fill { height: 100%; background: var(--accent); width: 0%; animation: load 1.5s ease forwards; }
+  @keyframes load { to { width: 100%; } }
+  .error-msg { font-size: 10px; color: var(--bad); padding: 6px 0; }
+  .no-data { font-size: 10px; color: var(--muted); padding: 6px 0; }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="loader-text">Loading dashboard</div>
+  <div class="loader-bar"><div class="loader-fill"></div></div>
+</div>
+
+<div id="sleep-screen">
+  <div id="sleep-clock">00:00</div>
+  <div id="sleep-date"></div>
+  <button id="sleep-override-btn" onclick="cycleOverride()">Change Mode</button>
+</div>
+
+<div id="app" class="commute">
+
+  <div id="header">
+    <div id="last-updated"></div>
+    <div id="header-time-block">
+      <div id="header-time">00:00</div>
+      <div id="header-date"></div>
+    </div>
+    <div id="header-right">
+      <button id="override-btn" onclick="cycleOverride()">Change Mode</button>
+      <div id="mode-badge">Commute</div>
+    </div>
+  </div>
+
+  <!-- COMMUTE -->
+  <div class="card departures-card" id="john-card">
+    <div class="card-label"><span class="dot" style="background:var(--overground)"></span>Brondesbury Park → Earl's Court</div>
+    <div id="john-departures"><div class="no-data">Loading...</div></div>
+  </div>
+
+  <div class="card departures-card flatmate" id="flatmate-card">
+    <div class="card-label"><span class="dot" style="background:var(--mildmay)"></span>Brondesbury Park → Gunnersbury</div>
+    <div id="flatmate-departures"><div class="no-data">Loading...</div></div>
+  </div>
+
+  <div class="card" id="status">
+    <div class="card-label"><span class="dot"></span>Key Lines</div>
+    <div class="status-grid" id="status-content"></div>
+  </div>
+
+  <div class="card" id="hourly-commute">
+    <div class="card-label"><span class="dot"></span>Next 6 Hours</div>
+    <div class="hourly-strip" id="hourly-commute-content"></div>
+  </div>
+
+  <!-- HOME -->
+  <div class="card" id="home-clock" style="display:none">
+    <div id="home-clock-time">00:00</div>
+    <div id="home-clock-date"></div>
+    <div id="home-clock-weather">
+      <div id="home-big-icon">☁️</div>
+      <div>
+        <div id="home-big-temp">--°</div>
+        <div id="home-weather-desc"></div>
+        <div id="home-weather-range"></div>
+        <div id="home-sunset"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="home-lines" style="display:none">
+    <div class="card-label"><span class="dot"></span>Tube & Overground</div>
+    <div id="home-lines-content"></div>
+  </div>
+
+  <div class="card" id="hourly-home" style="display:none">
+    <div class="card-label"><span class="dot"></span>Next 6 Hours</div>
+    <div class="hourly-strip" id="hourly-home-content"></div>
+  </div>
+
+  <div id="ticker" style="display:none">
+    <div id="ticker-label">News</div>
+    <div id="ticker-track-wrap">
+      <div id="ticker-track"></div>
+    </div>
+  </div>
+
+</div>
+
+<div id="disruption-banner"></div>
+
+<script>
+const TFL_KEY = '78be836e82194be0892b69045747e739';
+const GUARDIAN_KEY = '1d633f52-bdee-4d41-a91a-9dee1e78dd97';
+const TFL = 'https://api.tfl.gov.uk';
+const BRONDESBURY_PARK = '910GBRNSPK';
+const LAT = 51.5353, LNG = -0.2043;
+
+// Only 5 key lines in commute status
+const KEY_LINES = ['mildmay','jubilee','piccadilly','bakerloo','district'];
+const ALL_LINES = [
+  'bakerloo','central','circle','district','elizabeth','hammersmith-city',
+  'jubilee','metropolitan','northern','piccadilly','victoria',
+  'mildmay','windrush','suffragette','weaver','lioness','liberty'
+];
+
+const LINE_COLORS = {
+  'bakerloo':'#894e24','central':'#e32017','circle':'#c9a800',
+  'district':'#007b45','elizabeth':'#6950a1','hammersmith-city':'#d4829a',
+  'jubilee':'#7c8082','metropolitan':'#9b0056','northern':'#333',
+  'piccadilly':'#003688','victoria':'#0098d4',
+  'mildmay':'#6950a1','windrush':'#e32017','suffragette':'#007b45',
+  'weaver':'#d4829a','lioness':'#c9a800','liberty':'#0098d4',
+};
+const LINE_NAMES = {
+  'bakerloo':'Bakerloo','central':'Central','circle':'Circle',
+  'district':'District','elizabeth':'Elizabeth','hammersmith-city':'H&C',
+  'jubilee':'Jubilee','metropolitan':'Met','northern':'Northern',
+  'piccadilly':'Piccadilly','victoria':'Victoria',
+  'mildmay':'Mildmay','windrush':'Windrush','suffragette':'Suffragette',
+  'weaver':'Weaver','lioness':'Lioness','liberty':'Liberty',
+};
+
+// ── MODE OVERRIDE ──
+// null = auto, 'commute' = forced commute, 'home' = forced home, 'sleep' = forced sleep
+let modeOverride = null;
+const OVERRIDE_CYCLE = [null, 'commute', 'home', 'sleep'];
+let overrideIdx = 0;
+let lastUpdateTime = null;
+
+function cycleOverride() {
+  overrideIdx = (overrideIdx + 1) % OVERRIDE_CYCLE.length;
+  modeOverride = OVERRIDE_CYCLE[overrideIdx];
+  const isOverriding = modeOverride !== null;
+  ['override-btn','sleep-override-btn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('active', isOverriding);
+  });
+  update();
+}
+
+// ── TIME / MODE ──
+function now() { return new Date(); }
+function fmtTime(d) { return d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); }
+function fmtDate(d) { return d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'}); }
+function minsUntil(iso) { return Math.round((new Date(iso)-now())/60000); }
+function isWeekend() { const d=now().getDay(); return d===0||d===6; }
+
+function getMode() {
+  if (modeOverride !== null) return modeOverride;
+  const m = now().getHours()*60+now().getMinutes();
+  if (m<360||m>=1380) return 'sleep';
+  if (!isWeekend()&&m<630) return 'commute';
+  return 'home';
+}
+function isPeak() { const m=now().getHours()*60+now().getMinutes(); return m>=450&&m<510; }
+
+// ── STALE DATA ──
+function updateStaleIndicator() {
+  const el = document.getElementById('last-updated');
+  if (!lastUpdateTime) return;
+  const ageMins = (Date.now()-lastUpdateTime)/60000;
+  el.classList.toggle('stale', ageMins > 3);
+}
+
+// ── WEATHER ──
+function wIcon(c){if(c===0)return'☀️';if(c<=2)return'⛅';if(c<=3)return'☁️';if(c<=48)return'🌫️';if(c<=57)return'🌦️';if(c<=67)return'🌧️';if(c<=77)return'❄️';if(c<=82)return'🌦️';return'⛈️';}
+function wDesc(c){if(c===0)return'Clear';if(c<=2)return'Partly cloudy';if(c<=3)return'Overcast';if(c<=48)return'Foggy';if(c<=57)return'Drizzle';if(c<=67)return'Rain';if(c<=77)return'Snow';if(c<=82)return'Showers';return'Thunderstorm';}
+
+let wCache=null,wTime=0;
+async function fetchWeather() {
+  if(wCache&&Date.now()-wTime<600000) return wCache;
+  const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LNG}&current=temperature_2m,weathercode,windspeed_10m,relative_humidity_2m&hourly=temperature_2m,weathercode,precipitation_probability&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset&timezone=Europe/London&forecast_days=2`);
+  wCache=await r.json(); wTime=Date.now(); return wCache;
+}
+
+function renderHourly(weather) {
+  const n=now(), todayStr=n.toISOString().slice(0,10), curH=n.getHours();
+  const times=weather.hourly.time;
+  let idx=times.findIndex(t=>t===`${todayStr}T${String(curH).padStart(2,'0')}:00`);
+  if(idx<0)idx=0;
+  let html='';
+  for(let i=idx;i<idx+6&&i<times.length;i++){
+    const t=new Date(times[i]+':00');
+    const rain=weather.hourly.precipitation_probability[i];
+    html+=`<div class="hour-item">
+      <div class="hour-time">${fmtTime(t)}</div>
+      <div class="hour-icon">${wIcon(weather.hourly.weathercode[i])}</div>
+      <div class="hour-temp">${Math.round(weather.hourly.temperature_2m[i])}°</div>
+      <div class="hour-rain">${rain>20?`💧${rain}%`:''}</div>
+    </div>`;
+  }
+  return html;
+}
+
+// ── NEWS ──
+let newsCache=null,newsTime=0;
+async function fetchNews() {
+  if(newsCache&&Date.now()-newsTime<300000) return newsCache;
+  try {
+    const r=await fetch(`https://content.guardianapis.com/search?section=uk-news&show-fields=headline&page-size=20&api-key=${GUARDIAN_KEY}`);
+    const data=await r.json();
+    newsCache=data.response.results.map(a=>a.webTitle||'');
+    newsTime=Date.now(); return newsCache;
+  } catch(e){ return newsCache||[]; }
+}
+
+function renderTicker(headlines) {
+  if(!headlines||!headlines.length) return;
+  const track=document.getElementById('ticker-track');
+  const items=[...headlines,...headlines].map(h=>`<span class="ticker-item"><span>${h}</span></span>`).join('');
+  track.innerHTML=items;
+  const dur=Math.max(40,headlines.join('').length*0.12);
+  track.style.animation=`ticker-scroll ${dur}s linear infinite`;
+}
+
+// ── TFL ──
+async function tfl(path) {
+  const sep=path.includes('?')?'&':'?';
+  const r=await fetch(`${TFL}${path}${sep}app_key=${TFL_KEY}`);
+  if(!r.ok) throw new Error(`TfL ${r.status}`);
+  return r.json();
+}
+async function fetchDeps(){return tfl(`/StopPoint/${BRONDESBURY_PARK}/Arrivals`);}
+async function fetchStatus(lines){return tfl(`/Line/${lines.join(',')}/Status`);}
+
+function renderDeps(arr, el) {
+  if (!arr||arr.length===0) {
+    el.innerHTML='<div class="dep-no-service">⚠ No services — check line status</div>';
+    return;
+  }
+  arr.sort((a,b)=>new Date(a.expectedArrival)-new Date(b.expectedArrival));
+  const shown=arr.slice(0,5);
+  let html='';
+  if(shown.length===1) html+='<div class="dep-limited">Limited service</div>';
+  shown.forEach((a,i)=>{
+    const m=minsUntil(a.expectedArrival);
+    const ts=m<=0?'Now':`${m} min`;
+    const u=m<=7?'urgent':m<=12?'soon':'';
+    const firstClass=i===0?'first':'';
+    html+=`<div class="departure-row ${firstClass}">
+      <div class="dep-time ${u}">${fmtTime(new Date(a.expectedArrival))}</div>
+      <div class="dep-info">
+        <div class="dep-dest">${a.destinationName||a.towards||'—'}</div>
+        <div class="dep-platform">${a.lineName||''} ${a.platformName?'· '+a.platformName:''}</div>
+      </div>
+      <div class="dep-mins ${u}">${ts}</div>
+    </div>`;
+  });
+  el.innerHTML=html;
+}
+
+function sc(sev){return sev===10?'good':sev>=5?'warn':'bad';}
+function sl(s){return s?.[0]?.statusSeverityDescription||'Unknown';}
+
+function renderCommuteStatus(statuses) {
+  document.getElementById('status-content').innerHTML=statuses.map(line=>{
+    const sev=line.lineStatuses?.[0]?.statusSeverity??10;
+    const color=LINE_COLORS[line.id]||'#888';
+    return`<div class="sg-item">
+      <div class="sg-name"><span class="line-swatch" style="background:${color}"></span>${LINE_NAMES[line.id]||line.name}</div>
+      <span class="status-chip ${sc(sev)}">${sl(line.lineStatuses)}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderHomeLines(statuses) {
+  const disrupted=statuses.filter(l=>(l.lineStatuses?.[0]?.statusSeverity??10)<10);
+  const el=document.getElementById('home-lines-content');
+  if(!disrupted.length){
+    el.innerHTML=`<div id="all-good-msg">Good service on all lines<small>All Tube & Overground lines running normally</small></div>`;
+    return;
+  }
+  el.innerHTML=disrupted.map(line=>{
+    const sev=line.lineStatuses?.[0]?.statusSeverity??10;
+    const color=LINE_COLORS[line.id]||'#888';
+    return`<div class="disruption-row">
+      <div class="disruption-name"><span class="line-swatch" style="background:${color}"></span>${LINE_NAMES[line.id]||line.name}</div>
+      <span class="status-chip ${sc(sev)}">${sl(line.lineStatuses)}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── CLOCKS ──
+function updateClocks() {
+  const t=now(),ts=fmtTime(t),ds=fmtDate(t);
+  document.getElementById('header-time').textContent=ts;
+  document.getElementById('header-date').textContent=ds;
+  document.getElementById('home-clock-time').textContent=ts;
+  document.getElementById('home-clock-date').textContent=ds;
+  document.getElementById('sleep-clock').textContent=ts;
+  document.getElementById('sleep-date').textContent=ds.toUpperCase();
+  updateStaleIndicator();
+}
+
+// ── MODE ──
+function applyMode(mode) {
+  const app=document.getElementById('app');
+  const sleep=document.getElementById('sleep-screen');
+  const badge=document.getElementById('mode-badge');
+  const timeBlock=document.getElementById('header-time-block');
+  const cEls=['john-card','flatmate-card','status','hourly-commute'];
+  const hEls=['home-clock','home-lines','hourly-home','ticker'];
+
+  if(mode==='sleep'){app.style.opacity='0';sleep.classList.remove('hidden');return;}
+  sleep.classList.add('hidden');app.style.opacity='1';
+
+  const modeLabels = { 'commute': 'Commute', 'home': isWeekend()?'Weekend':'Home', 'sleep': 'Sleep' };
+  badge.textContent = (modeOverride ? '⚡ ' : '') + (modeLabels[mode] || mode);
+
+  if(mode==='commute'){
+    app.className='commute';
+    timeBlock.style.display='';
+    cEls.forEach(id=>document.getElementById(id).style.display='');
+    hEls.forEach(id=>document.getElementById(id).style.display='none');
+  } else {
+    app.className='home';
+    timeBlock.style.display='none';
+    cEls.forEach(id=>document.getElementById(id).style.display='none');
+    hEls.forEach(id=>document.getElementById(id).style.display='');
+  }
+}
+
+// ── MAIN UPDATE ──
+async function update() {
+  const mode=getMode();
+  applyMode(mode);updateClocks();
+  if(mode==='sleep'){document.getElementById('loading').classList.add('hidden');return;}
+
+  const isOverride = modeOverride !== null;
+
+  try {
+    const weather=await fetchWeather();
+    const hourlyHTML=renderHourly(weather);
+    const c=weather.current;
+
+    if(mode==='commute'){
+      document.getElementById('hourly-commute-content').innerHTML=hourlyHTML;
+
+      // Departures
+      try {
+        const all=await fetchDeps();
+        const johnArr=all.filter(a=>a.lineId==='london-overground'||(a.lineName&&a.lineName.toLowerCase().includes('overground')));
+        const flatArr=all.filter(a=>a.lineId==='mildmay'||(a.lineName&&a.lineName.toLowerCase().includes('mildmay')));
+        renderDeps(johnArr,document.getElementById('john-departures'));
+        renderDeps(flatArr,document.getElementById('flatmate-departures'));
+      } catch(e){
+        ['john-departures','flatmate-departures'].forEach(id=>document.getElementById(id).innerHTML='<div class="error-msg">Could not load departures</div>');
+      }
+
+      // Key line statuses
+      try {
+        const statuses=await fetchStatus(KEY_LINES);
+        renderCommuteStatus(statuses);
+        const disrupted=statuses.filter(l=>(l.lineStatuses?.[0]?.statusSeverity??10)<10);
+        const banner=document.getElementById('disruption-banner');
+        if(disrupted.length){banner.style.display='block';banner.textContent='⚠ '+disrupted.map(l=>`${LINE_NAMES[l.id]}: ${sl(l.lineStatuses)}`).join(' · ');}
+        else{banner.style.display='none';}
+      } catch(e){}
+
+      // Mark successful update
+      lastUpdateTime=Date.now();
+      document.getElementById('last-updated').textContent='Updated '+fmtTime(now());
+
+    } else {
+      // HOME
+      document.getElementById('hourly-home-content').innerHTML=hourlyHTML;
+      document.getElementById('home-big-icon').textContent=wIcon(c.weathercode);
+      document.getElementById('home-big-temp').textContent=`${Math.round(c.temperature_2m)}°`;
+      document.getElementById('home-weather-desc').textContent=wDesc(c.weathercode).toUpperCase();
+      document.getElementById('home-weather-range').textContent=`${Math.round(weather.daily.temperature_2m_min[0])}° – ${Math.round(weather.daily.temperature_2m_max[0])}°`;
+
+      if(weather.daily.sunset?.[0]){
+        const sunset=new Date(weather.daily.sunset[0]);
+        document.getElementById('home-sunset').innerHTML=`Sunset <span>${fmtTime(sunset)}</span>`;
+      }
+
+      try {
+        const statuses=await fetchStatus(ALL_LINES);
+        renderHomeLines(statuses);
+      } catch(e){document.getElementById('home-lines-content').innerHTML='<div class="error-msg">Could not load</div>';}
+
+      try {
+        const headlines=await fetchNews();
+        renderTicker(headlines);
+      } catch(e){}
+
+      lastUpdateTime=Date.now();
+      document.getElementById('last-updated').textContent='Updated '+fmtTime(now());
+    }
+
+  } catch(e){
+    console.error('Update error:',e);
+    document.getElementById('last-updated').textContent='Update failed';
+    document.getElementById('last-updated').classList.add('stale');
+  }
+
+  document.getElementById('loading').classList.add('hidden');
+}
+
+update();
+setInterval(updateClocks,1000);
+setInterval(update,30000);
+setInterval(async()=>{
+  if(getMode()==='home'){
+    const headlines=await fetchNews();
+    renderTicker(headlines);
+  }
+},300000);
+</script>
+</body>
+</html>
