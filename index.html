@@ -282,6 +282,11 @@ let lastUpdateTime = null;
 
 function cycleOverride() {
   overrideIdx = (overrideIdx + 1) % OVERRIDE_CYCLE.length;
+  // If we just landed on sleep via the sleep screen button, skip to commute
+  // so one click always gets you to a useful mode
+  if (OVERRIDE_CYCLE[overrideIdx] === 'sleep' && document.getElementById('sleep-screen') && !document.getElementById('sleep-screen').classList.contains('hidden')) {
+    overrideIdx = (overrideIdx + 1) % OVERRIDE_CYCLE.length;
+  }
   modeOverride = OVERRIDE_CYCLE[overrideIdx];
   const isOverriding = modeOverride !== null;
   ['override-btn','sleep-override-btn'].forEach(id => {
@@ -376,9 +381,18 @@ async function tfl(path) {
 async function fetchDeps(){return tfl(`/StopPoint/${BRONDESBURY_PARK}/Arrivals`);}
 async function fetchStatus(lines){return tfl(`/Line/${lines.join(',')}/Status`);}
 
+function isOvernight() {
+  const m = now().getHours()*60+now().getMinutes();
+  return m < 300 || m >= 1380; // midnight–5am or after 11pm
+}
+
 function renderDeps(arr, el) {
   if (!arr||arr.length===0) {
-    el.innerHTML='<div class="dep-no-service">⚠ No services — check line status</div>';
+    if (isOvernight()) {
+      el.innerHTML='<div class="dep-no-service">🌙 Closed overnight — services resume from 5am</div>';
+    } else {
+      el.innerHTML='<div class="dep-no-service">⚠ No services — check line status</div>';
+    }
     return;
   }
   arr.sort((a,b)=>new Date(a.expectedArrival)-new Date(b.expectedArrival));
@@ -406,12 +420,15 @@ function sc(sev){return sev===10?'good':sev>=5?'warn':'bad';}
 function sl(s){return s?.[0]?.statusSeverityDescription||'Unknown';}
 
 function renderCommuteStatus(statuses) {
+  const overnight = isOvernight();
   document.getElementById('status-content').innerHTML=statuses.map(line=>{
     const sev=line.lineStatuses?.[0]?.statusSeverity??10;
     const color=LINE_COLORS[line.id]||'#888';
+    const chipClass = overnight ? 'warn' : sc(sev);
+    const chipLabel = overnight ? 'Closed' : sl(line.lineStatuses);
     return`<div class="sg-item">
       <div class="sg-name"><span class="line-swatch" style="background:${color}"></span>${LINE_NAMES[line.id]||line.name}</div>
-      <span class="status-chip ${sc(sev)}">${sl(line.lineStatuses)}</span>
+      <span class="status-chip ${chipClass}">${chipLabel}</span>
     </div>`;
   }).join('');
 }
