@@ -1,0 +1,7 @@
+{
+  "name": "Home Dashboard",
+  "display": "fullscreen",
+  "start_url": "/home-dashboard/",
+  "background_color": "#0a0e0f",
+  "theme_color": "#0a0e0f"
+}
